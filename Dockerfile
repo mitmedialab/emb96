@@ -39,9 +39,9 @@ USER user
 ENV HOME=/hom/user
 RUN chmod 777 /home/user
 
-RUN pip3 install numpy scipy matplotlib bs4 mido music21 tqdm argparse pillow
-RUN pip3 install tensorflow-gpu tensorboard
-RUN pip3 install torch torchvision tensorboardX
+RUN sudo pip3 install numpy scipy matplotlib bs4 mido music21 tqdm argparse pillow
+RUN sudo pip3 install tensorflow-gpu tensorboard
+RUN sudo pip3 install torch torchvision tensorboardX
 
 RUN git clone https://github.com/mitmedialab/emb96.git
 RUN cd emb96
