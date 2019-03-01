@@ -1,9 +1,9 @@
 FROM nvidia/cuda:9.0-base-ubuntu16.04
 
-RUN apt-get install -y software-properties-common
+RUN apt-get update && apt-get install -y software-properties-common
 RUN add-apt-repository ppa:jonathonf/python-3.6
-RUN apt-get update
-RUN apt-get install -y \
+
+RUN apt-get update && apt-get install -y \
   curl \
   ca-certificates \
   sudo \
@@ -12,6 +12,7 @@ RUN apt-get install -y \
   bzip2 \
   libx11-6 \
   git
+
 RUN apt-get install -y \
   python3.6 \
   python3.6-dev \
