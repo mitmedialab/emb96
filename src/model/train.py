@@ -66,7 +66,7 @@ def train(epochs, batch_size, learning_rate, weight_decay, beta, num_workers,
 
     criterion = Criterion(beta)
     optimizer = torch.optim.Adam(
-        model.parameters(),
+        list(encoder.parameters()) + list(decoder.parameters()),
         lr           = learning_rate,
         weight_decay = weight_decay
     )

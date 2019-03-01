@@ -53,18 +53,3 @@ RUN git clone https://github.com/mitmedialab/emb96.git
 RUN cd emb96
 
 EXPOSE 6006
-# ENTRYPOINT ["tensorboard", "--logdir=./simple/"]
-
-# python3 main.py \
-#   --dataset_dir ../dataset/ \
-#   --t_dataset_dir ../t_dataset/ \
-#   --generated_dir ../generated/ \
-#   --epochs 250 \
-#   --batch_size 16 \
-#   --learning_rate 1e-4 \
-#   --weight_decay 0. \
-#   --beta 4. \
-#   --num_workers 4 \
-#   --experience_name simple \
-#   --saving_rate 1 \
-#   --download --transpose --generate --train \
