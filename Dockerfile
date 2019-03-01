@@ -1,18 +1,27 @@
 FROM nvidia/cuda:9.0-base-ubuntu16.04
 
-RUN apt-get update && apt-get install -y \
+RUN add-apt-repository ppa:jonathonf/python-3.6
+RUN apt-get update
+RUN apt-get install -y \
   curl \
   ca-certificates \
   sudo \
+  wget \
   git \
   bzip2 \
   libx11-6 \
-  python3 \
-  python3-dev \
-  python3-pip \
   git
+RUN apt-get install -y \
+  python3.6 \
+  python3.6-dev \
+  python3.6-venv
+RUN wget https:..bootstrap.pypa.io/get-pip.py
+RUN python3.6 get-pip.py
+RUN rm get-pip.py
+RUN ln -s /usr/bin/python3.6 /usr/local/bin/python3
+RUN ln -s /usr/bin/pip /usr/local/bin/pip3
 
-RUN rm -rf /var/lib//apt/lists/*
+RUN rm -rf /var/lib/apt/lists/*
 
 RUN mkdir /app
 WORKDIR /app
