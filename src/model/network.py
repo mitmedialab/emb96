@@ -34,12 +34,21 @@ class SongEncoder(nn.Module):
             nn.Linear(1024, 512),
             nn.ReLU(inplace=True),
             nn.Dropout(0.5),
-            nn.Linear(512, 256),
-            nn.ReLU(inplace=True)
         )
 
+        self.mu    = nn.Linear(512, 256)
+        self.sigma = nn.Linear(512, 256)
+
+    def reparametrization(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return eps.mul(std).add_(mu)
+
     def forward(self, x):
-        return self.fc(x)
+        y          = self.fc(x)
+        mu, logvar = self.mu(y), self.sigma(y)
+        z          = self.reparametrization(mu, logvar)
+        return (z, mu, logvar)
 
 class Encoder(nn.Module):
     def __init__(self):
@@ -49,7 +58,8 @@ class Encoder(nn.Module):
         self.se = SongEncoder()
 
     def forward(self, x):
-        return self.se(self.fe(x))
+        z, mu, logvar = self.se(self.fe(x))
+        return (z, mu, logvar)
 
 class FrameDecoder(nn.Module):
     def __init__(self, t, c, h, w):
@@ -105,13 +115,3 @@ class Decoder(nn.Module):
 
     def forward(self, x):
         return self.fd(self.sd(x))
-
-
-# if __name__ == '__main__':
-#     import numpy as np
-#
-#     encoder = Encoder()
-#     decoder = Decoder(16, 1, 96, 96)
-#     print(decoder(encoder(
-#         torch.from_numpy(np.zeros((1, 16, 1, 96, 96), dtype=np.uint8)).float()
-#     )).size())

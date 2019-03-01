@@ -13,19 +13,19 @@ import torch
 import os
 import io
 
-def plot(track, imgs):
+def plot(_imgs, imgs):
     fig  = plt.figure(figsize=(20, 10))
     axes = [fig.add_subplot(16, 2, i + 1) for i in range(32)]
 
     for i in range(16):
         axes[i].set_title('output')
-        axes[i].imshow(track[i])
+        axes[i].imshow(_imgs[i])
         axes[i].axis('off')
 
-    for i in range(16, 32):
-        axes[i].set_title('target')
-        axes[i].imshow(track[i])
-        axes[i].axis('off')
+    for i in range(16):
+        axes[16 + i].set_title('target')
+        axes[16 + i].imshow(imgs[i])
+        axes[16 + i].axis('off')
 
     plt.tight_layout()
     fig.canvas.draw()
@@ -39,7 +39,7 @@ def plot(track, imgs):
 
     return data
 
-def train(epochs, batch_size, learning_rate, weight_decay, num_workers,
+def train(epochs, batch_size, learning_rate, weight_decay, beta, num_workers,
           dataset_dir, experience_name, saving_rate):
 
     experience_name = os.path.join('../', experience_name)
@@ -64,7 +64,7 @@ def train(epochs, batch_size, learning_rate, weight_decay, num_workers,
     encoder = Encoder()
     decoder = Decoder(16, 1, 96, 96)
 
-    criterion = Criterion()
+    criterion = Criterion(beta)
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr           = learning_rate,
@@ -87,7 +87,11 @@ def train(epochs, batch_size, learning_rate, weight_decay, num_workers,
             imgs    = imgs.cuda()
 
             optimizer.zero_grad()
-            loss = criterion(decoder(encoder(imgs)), imgs)
+
+            z, mu, logvar = encoder(imgs)
+            _imgs         = decoder(z)
+
+            loss = criterion(_imgs, imgs, mu, logvar)
             loss.backward()
             optimizer.step()
 
@@ -130,9 +134,10 @@ def train(epochs, batch_size, learning_rate, weight_decay, num_workers,
                     batch = Dataset[i]
                     imgs, _ = batch
                     imgs    = imgs.cuda()
-                    track   = decoder(encoder(imgs.unsqueeze(0)))[0][0].cpu().detach().numpy()
+                    z, _, _ = encoder(imgs.unsqueeze(0))
+                    _imgs   = decoder(z)[0][0].cpu().detach().numpy()
                     writer.add_image(
                         f'entry_{i}',
-                        plot(track, imgs[0].cpu().detach().numpy()),
+                        plot(_imgs, imgs[0].cpu().detach().numpy()),
                         epoch + 1
                     )
