@@ -52,8 +52,6 @@ USER user
 RUN git clone https://github.com/mitmedialab/emb96.git
 RUN cd emb96
 
-RUN mkdir simple
-
 EXPOSE 6006
 # ENTRYPOINT ["tensorboard", "--logdir=./simple/"]
 
@@ -69,4 +67,4 @@ EXPOSE 6006
 #   --num_workers 4 \
 #   --experience_name simple \
 #   --saving_rate 1 \
-#   --donwload --transpose --generate --train \
+#   --download --transpose --generate --train \

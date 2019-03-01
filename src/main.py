@@ -63,4 +63,5 @@ if __name__ == '__main__':
     if args.train:
         train_model(args.epochs, args.batch_size, args.learning_rate,
                     args.weight_decay, args.beta, args.num_workers,
-                    args.experience_name, args.saving_rate)
+                    args.generated_dir, args.experience_name,
+                    args.saving_rate)
