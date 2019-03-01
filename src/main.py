@@ -17,12 +17,12 @@ def generate_dataset(dataset_dir, t_dataset_dir, generated_dir):
         return
     build_images(dataset_dir, t_dataset_dir, generated_dir)
 
-def train_model(epochs, batch_size, learning_rate, weight_decay, num_workers,
+def train_model(epochs, batch_size, learning_rate, weight_decay, beta, num_workers,
                 dataset_dir, experience_name, saving_rate):
-    if epochs is None or batch_size is None or learning_rate is None or weight_decay is None or num_workers is None or dataset_dir is None or experience_name is None or saving_rate is None:
+    if epochs is None or batch_size is None or learning_rate is None or weight_decay is None or beta is None or num_workers is None or dataset_dir is None or experience_name is None or saving_rate is None:
         return
 
-    train(epochs, batch_size, learning_rate, weight_decay, num_workers,
+    train(epochs, batch_size, learning_rate, weight_decay, beta, num_workers,
           dataset_dir, experience_name, saving_rate)
 
 
@@ -44,6 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size',      default=16,           type=int)
     parser.add_argument('--learning_rate',   default=1e-4,         type=float)
     parser.add_argument('--weight_decay',    default=0.,           type=float)
+    parser.add_argument('--beta',            default=4.,           type=float)
     parser.add_argument('--num_workers',     default=6,            type=int)
     parser.add_argument('--experience_name', default='experience', type=str)
     parser.add_argument('--saving_rate',     default=2,            type=int)
@@ -61,5 +62,5 @@ if __name__ == '__main__':
 
     if args.train:
         train_model(args.epochs, args.batch_size, args.learning_rate,
-                    args.weight_decay, args.num_workers, args.experience_name,
-                    args.saving_rate)
+                    args.weight_decay, args.beta, args.num_workers,
+                    args.experience_name, args.saving_rate)
