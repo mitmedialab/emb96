@@ -31,17 +31,19 @@ RUN rm -rf /var/lib/apt/lists/*
 RUN mkdir /app
 WORKDIR /app
 
+USER root
 RUN adduser --disabled-password --gecos '' --shel /bin/bash user \
   && chown -R user:user /app
 RUN echo "user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90.-user
-USER user
 
 ENV HOME=/hom/user
 RUN chmod 777 /home/user
 
-RUN sudo pip3 install numpy scipy matplotlib bs4 mido music21 tqdm argparse pillow
-RUN sudo pip3 install tensorflow-gpu tensorboard
-RUN sudo pip3 install torch torchvision tensorboardX
+RUN pip3 install numpy scipy matplotlib bs4 mido music21 tqdm argparse pillow
+RUN pip3 install tensorflow-gpu tensorboard
+RUN pip3 install torch torchvision tensorboardX
+
+USER user
 
 RUN git clone https://github.com/mitmedialab/emb96.git
 RUN cd emb96
