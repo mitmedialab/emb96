@@ -21,7 +21,7 @@ RUN wget https://bootstrap.pypa.io/get-pip.py
 RUN python3.6 get-pip.py
 RUN rm get-pip.py
 RUN ln -s /usr/bin/python3.6 /usr/local/bin/python3
-RUN ln -s /usr/bin/pip /usr/local/bin/pip3
+RUN ln -s /usr/local/bin/pip /usr/local/bin/pip3
 
 RUN rm -rf /var/lib/apt/lists/*
 
