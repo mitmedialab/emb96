@@ -1,5 +1,6 @@
 FROM nvidia/cuda:9.0-base-ubuntu16.04
 
+RUN apt-get install -y software-properties-common
 RUN add-apt-repository ppa:jonathonf/python-3.6
 RUN apt-get update
 RUN apt-get install -y \
