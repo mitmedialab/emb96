@@ -54,5 +54,5 @@ RUN cd emb96
 
 RUN mkdir simple
 
-EXPOSE 60006
+EXPOSE 6006
 ENTRYPOINT ["tensorboard", "--logdir=./simple/"]
