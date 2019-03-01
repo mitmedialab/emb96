@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
   git \
   bzip2 \
   libx11-6 \
+  libgomp1 \
   git
 
 RUN apt-get install -y \
