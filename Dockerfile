@@ -40,7 +40,7 @@ ENV HOME=/hom/user
 RUN chmod 777 /home/user
 
 RUN pip3 install numpy scipy matplotlib bs4 mido music21 tqdm argparse pillow
-RUN pip3 install tensorboard
+RUN pip3 install tensorflow-gpu-1.12.0 tensorboard
 RUN pip3 install torch torchvision tensorboardX
 
 USER user
