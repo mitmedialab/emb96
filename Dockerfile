@@ -40,9 +40,10 @@ ENV HOME=/hom/user
 RUN chmod 777 /home/user
 
 RUN ln -s /usr/local/cuda /usr/local/cuda-9.0
+RUN export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-9.0/lib64
 
 RUN pip3 install numpy scipy matplotlib bs4 mido music21 tqdm argparse pillow
-RUN pip3 install tensorflow-gpu==1.12.0 tensorboard
+RUN pip3 install tensorflow-gpu==1.12.0 tensorboard==1.12.0
 RUN pip3 install torch torchvision tensorboardX
 
 USER user
