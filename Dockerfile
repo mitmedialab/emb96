@@ -23,8 +23,6 @@ RUN python3.6 get-pip.py
 RUN rm get-pip.py
 
 RUN ln -s /usr/bin/python3.6 /usr/local/bin/python3
-RUN ln -s /usr/local/bin/pip3.6 /usr/local/bin/pip3
-
 RUN python3 --version
 RUN $(head -1 `which pip3` | tail -c +3) --version
 
