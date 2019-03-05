@@ -1,4 +1,6 @@
 from mido import MidiFile, MidiTrack, Message
+from multiprocessing import Pool
+from PIL import Image
 from tqdm import tqdm
 
 import numpy as np
@@ -10,217 +12,173 @@ SAMPLE_PER_MEASURE = 96
 MEASURES           = 16
 KEYS               = 12
 
-MAJORS = dict([('A-', 4),('G#', 4),('A', 3),('A#', 2),('B-', 2),('B', 1),('C', 0),('C#', -1),('D-', -1),('D', -2),('D#', -3),('E-', -3),('E', -4),('F', -5),('F#', 6),('G-', 6),('G', 5)])
-MINORS = dict([('G#', 1), ('A-', 1),('A', 0),('A#', -1),('B-', -1),('B', -2),('C', -3),('C#', -4),('D-', -4),('D', -5),('D#', 6),('E-', 6),('E', 5),('F', 4),('F#', 3),('G-', 3),('G', 2)])
+TIME_SIGNATURE = 'time_signature'
+NOTE_ON        = 'note_on'
+NOTE_OFF       = 'note_off'
+VELOCITY       = 127
 
-def info(score):
-    key = score.analyze('key')
-    return (key.tonic.name, key.mode)
-
-def read(path):
-    score = music21.converter.parse(path)
-    return score
-
-def transpose(path, destination_dir):
+def get_label(path):
     try:
         score = music21.converter.parse(path)
+        key   = score.analyze('key')
+        label = f'{key.tonic.name}_{key.mode}'
+        return label
     except:
-        print(f'Removed {path}: can\'t be parsed')
-        os.remove(path)
-        return
+        return None
 
-    key   = score.analyze('key')
-
-    if key.mode == "major":
-        halfSteps = MAJORS[key.tonic.name]
-
-    elif key.mode == "minor":
-        halfSteps = MINORS[key.tonic.name]
-
-    newscore = score.transpose(halfSteps)
-    key      = newscore.analyze('key')
-
-    new_path = os.path.join(destination_dir, f"transposed_{path.split('/')[-1]}")
-    newscore.write('midi', fp=new_path)
-
-def image(path):
-    mid = MidiFile(path)
-
-    ticks_per_beat    = mid.ticks_per_beat
-    ticks_per_measure = 4 * ticks_per_beat
-
-    time_sig  = False
-    flag_warn = False
-
-    for track in mid.tracks:
+def find_tpm(tracks, tpm):
+    for track in tracks:
         for msg in track:
-            if msg.type == 'time_signature':
-                new_tmp = msg.numerator * ticks_per_measure / msg.denominator
+            if msg.type == TIME_SIGNATURE:
+                new_tpm = msg.numerator * tpm / msg.denominator
 
-                if time_sig and new_tmp != ticks_per_measure:
-                    flag_warn = True
+                if new_tpm != tpm: return None
+                tpm = new_tpm
 
-                ticks_per_measure = new_tmp
-                time_sig          = True
+    return tpm
 
-    if flag_warn:
-        return []
-
+def find_notes(tracks, tpm):
     notes = {}
-    for track in mid.tracks:
+
+    for track in tracks:
         abs_t = 0
         note  = None
 
         for msg in track:
             abs_t += msg.time
-            if msg.type == 'note_on':
+
+            if msg.type == NOTE_ON:
                 if msg.velocity == 0:
                     continue
 
-                note = (msg.note - (128 - NOTES) * 0.5) % NOTES
-
+                note = int(np.floor((msg.note - (128 - NOTES) * 0.5) % NOTES))
                 if note not in notes:
                     notes[note] = []
                 else:
-                    single_note = notes[note][-1]
-                    if len(single_note) == 1:
-                        single_note.append(single_note[0] + 1)
+                    if len(notes[note][-1]) == 1:
+                        notes[note][-1].append(notes[note][-1][0] + 1)
+                notes[note].append([int(np.floor(abs_t * SAMPLE_PER_MEASURE / tpm))])
 
-                notes[note].append([abs_t * SAMPLE_PER_MEASURE / ticks_per_measure])
-
-            elif note != None and msg.type == 'note_off':
+            if note != None and msg.type == NOTE_OFF:
                 if len(notes[note][-1]) != 1:
                     continue
 
-                notes[note][-1].append(abs_t * SAMPLE_PER_MEASURE / ticks_per_measure)
+                notes[note][-1].append(int(np.floor(abs_t * SAMPLE_PER_MEASURE / tpm)))
 
     for note in notes:
         for start_end in notes[note]:
             if len(start_end) == 1:
                 start_end.append(start_end[0] + 1)
 
-    samples = []
+    return notes
+
+def find_measures(notes):
+    max_measure = int(np.ceil(
+        np.max([
+            np.max(notes[note])
+            for note in notes
+        ]) / SAMPLE_PER_MEASURE
+    ))
+
+    measures = np.zeros((NOTES, max_measure * SAMPLE_PER_MEASURE))
+
     for note in notes:
         for start, end in notes[note]:
-            sample_ix = int(np.floor(start / SAMPLE_PER_MEASURE))
-            while len(samples) <= sample_ix:
-                samples.append(np.zeros((SAMPLE_PER_MEASURE, NOTES), dtype=np.uint8))
+            measures[note, start] = 1
 
-            sample = samples[sample_ix]
-            start_ix = int(np.floor(start - sample_ix * SAMPLE_PER_MEASURE))
+    return measures
 
-            sample[start_ix, int(np.floor(note))] = 1
+def midi2img(path):
+    try:
+        midi = MidiFile(path)
 
-    return samples
+        tpb = midi.ticks_per_beat
+        tpm = 4 * tpb
+        tpm = find_tpm(midi.tracks, tpm)
+        if tpm is None: return None
 
-def cut(samples):
-    while len(samples) < MEASURES:
-        samples.append(np.zeros((SAMPLE_PER_MEASURE, NOTES), dtype=np.uint8))
+        notes    = find_notes(midi.tracks, tpm)
+        measures = find_measures(notes)
 
-    if len(samples) == MEASURES:
-        return samples
+        return np.array(measures, dtype=np.uint8)
+    except:
+        return None
 
-    middle = int(np.floor((len(samples) - 1) * 0.5))
-    step   = int(MEASURES * 0.5)
-    start  = middle - step
-    end    = middle + step
-
-    return samples[start:end]
-
-def save(samples, path, thresh=0.5):
-    mid   = MidiFile()
+def img2midi(img, path, thresh=0.5):
+    midi  = MidiFile()
     track = MidiTrack()
-    mid.tracks.append(track)
+    midi.tracks.append(track)
 
-    ticks_per_beat    = mid.ticks_per_beat
-    ticks_per_measure = 4 * ticks_per_beat
-    ticks_per_sample  = ticks_per_measure / SAMPLE_PER_MEASURE
+    tpb = midi.ticks_per_beat
+    tpm = 4 * midi.ticks_per_beat
+    tps = tpm / SAMPLE_PER_MEASURE
 
     abs_t  = 0
     last_t = 0
 
-    for sample in samples:
-    	for y in range(sample.shape[0]):
-            abs_t += ticks_per_sample
-            for x in range(sample.shape[1]):
-                note = int(np.floor(x + (128 - NOTES) * 0.5))
+    for t in range(img.shape[1]):
+        abs_t += tps
 
-                if sample[y, x] >= thresh and (y == 0 or sample[y - 1, x] < thresh):
-                    delta_t = int(np.floor(abs_t - last_t))
-                    track.append(Message('note_on', note=note, velocity=127, time=delta_t))
-                    last_t  = abs_t
+        for n in range(img.shape[0]):
+            note = int(np.floor(n + (128 - NOTES) * 0.5))
 
-                if sample[y, x] >= thresh and (y == sample.shape[0] - 1 or sample[y + 1, x] < thresh):
-                    delta_t = int(np.floor(abs_t - last_t))
-                    track.append(Message('note_off', note=note, velocity=127, time=delta_t))
-                    last_t  = abs_t
+            if img[n, t] >= thresh and (t == 0 or img[n, t - 1] < thresh):
+                detla_t = int(np.floor(abs_t - last_t))
+                track.append(Message(NOTE_ON, note=note, velocity=VELOCITY, time=detla_t))
+                last_t = abs_t
 
-    mid.save(path)
+            if img[n, t] >= thresh and (t == img.shape[1] - 1 or img[n, t + 1] < thresh):
+                detla_t = int(np.floor(abs_t - last_t))
+                track.append(Message(NOTE_OFF, note=note, velocity=VELOCITY, time=detla_t))
+                last_t = abs_t
 
-def shift(imgs, step):
-    assert(step > 0 and step < (NOTES // KEYS))
+    midi.save(path)
 
-    split   = 8 * KEYS - step * KEYS
-    for i in range(len(imgs)):
-        halfs   = [imgs[i][split:], imgs[i][:split]]
-        imgs[i] = np.concatenate(halfs)
+def plot(fig, ax, measures):
+    ax.imshow(measures, origin='lower')
+    ax.axis('off')
 
-    return imgs
+def save_img(measures, path):
+    img = Image.fromarray(measures * 255)
+    img.save(path)
 
-def build_transpose(data_dir, destination_dir):
+def load_img(path):
+    img = Image.open(path)
+    return np.array(img, dtype=np.uint8) / 255
+
+def build_image(data):
+    path            = data['path']
+    destination_dir = data['dst_dir']
+
+    label = get_label(path)
+    if label is None: return
+
+    dst_dir = os.path.join(destination_dir, label)
+    if not os.path.isdir(dst_dir):
+        os.mkdir(dst_dir)
+
+    measures = midi2img(path)
+    if measures is None: return
+
+    save_img(measures, os.path.join(
+        dst_dir,
+        path.split('/')[-1].replace('.mid', '.png')
+    ))
+
+def build(data_dir, destination_dir):
     if not os.path.isdir(destination_dir):
         os.mkdir(destination_dir)
 
-    midi_names = [name for name in os.listdir(data_dir) if '.mid' in name]
-    midi_paths = [os.path.join(data_dir, name) for name in midi_names]
+    files = [{
+        'path'   : os.path.join(data_dir, file),
+        'dst_dir': destination_dir
+    } for file in os.listdir(data_dir)]
 
-    pbar = tqdm(enumerate(midi_names), total=len(midi_names), desc='Building midi transpose')
-    for i, midi_name in pbar:
-        transpose(midi_paths[i], destination_dir)
-        pbar.set_description(f'Building midi transpose {midi_name}')
-
-def save_imgs(imgs, path):
-    np.save(path, np.array(imgs))
-
-def build_images(data_dir, t_data_dir, destination_dir):
-    if not os.path.isdir(destination_dir):
-        os.mkdir(destination_dir)
-
-    midi_names = [name for name in os.listdir(data_dir) if '.mid' in name]
-    midi_paths = [os.path.join(data_dir, name) for name in midi_names]
-
-    t_midi_names = [name for name in os.listdir(t_data_dir) if '.mid' in name]
-    t_midi_paths = [os.path.join(t_data_dir, name) for name in t_midi_names]
-
-    names = midi_names + t_midi_names
-    paths = midi_paths + t_midi_paths
-
-    idx  = 0
-    pbar = tqdm(paths, total=len(paths), desc='Building images')
-    for path in pbar:
-        try:
-            infos  = info(read(path))
-            folder = f'{infos[0]}{infos[1]}'
-        except:
-            print(f'Failed to read {path} info')
-            continue
-
-        destination_dir_folder = os.path.join(destination_dir, folder)
-        if not os.path.isdir(destination_dir_folder):
-            os.mkdir(destination_dir_folder)
-
-        try:
-            tracks = [cut(image(path))]
-        except:
-            print(f'Failed to read {path} as an image')
-            continue
-
-        for i in range(1, 8):
-            tracks.append(shift(tracks[0], i))
-
-        for track in tracks:
-            save_imgs(track, os.path.join(
-                destination_dir_folder,
-                f'sound_{idx:06d}.mid'
-            ))
-            idx += 1
+    with Pool(4) as p:
+        res = list(p.imap(build_image, tqdm(
+            files,
+            total = len(files),
+            desc  = 'Building dataset'
+        )))
+        p.close()
+        p.join()

@@ -115,6 +115,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-./dataset/
-./t_dataset/
-./generated/
+dataset/
+build/

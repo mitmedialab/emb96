@@ -1,29 +1,37 @@
-from dataset.midi import build_transpose, build_images
+from exploration.latent import generate
 from dataset.scrapper import scrap
+from dataset.midi import build
 from model.train import train
 
-def build_dataset(dataset_dir):
+def scrap_dataset(dataset_dir):
     if dataset_dir is None:
         return
     scrap(dataset_dir)
 
-def build_t_dataset(dataset_dir, t_dataset_dir):
-    if dataset_dir is None or t_dataset_dir is None:
+def build_dataset(dataset_dir, build_dir):
+    if dataset_dir is None or build_dir is None:
         return
-    build_transpose(dataset_dir, t_dataset_dir)
+    build(dataset_dir, build_dir)
 
-def generate_dataset(dataset_dir, t_dataset_dir, generated_dir):
-    if dataset_dir is None or t_dataset_dir is None or generated_dir is None:
+def train_model(epochs, batch_size, learning_rate, weight_decay,
+                beta_1, beta_2, latent_size, momentum, num_workers, build_dir,
+                experience_name, saving_rate, checkpoint):
+    if epochs is None or batch_size is None or learning_rate is None or weight_decay is None:
         return
-    build_images(dataset_dir, t_dataset_dir, generated_dir)
-
-def train_model(epochs, batch_size, learning_rate, weight_decay, beta, num_workers,
-                dataset_dir, experience_name, saving_rate):
-    if epochs is None or batch_size is None or learning_rate is None or weight_decay is None or beta is None or num_workers is None or dataset_dir is None or experience_name is None or saving_rate is None:
+    if beta_1 is None or beta_2 is None or latent_size is None or momentum is None or num_workers is None or build_dir is None:
+        return
+    if experience_name is None or saving_rate is None:
         return
 
-    train(epochs, batch_size, learning_rate, weight_decay, beta, num_workers,
-          dataset_dir, experience_name, saving_rate)
+    train(epochs, batch_size, learning_rate, weight_decay,
+          beta_1, beta_2, latent_size, momentum, num_workers, build_dir,
+          experience_name, saving_rate, None if checkpoint is None else checkpoint)
+
+def generate_examples(output_dir, latent_size, momentum, checkpoint, n):
+    if output_dir is None or latent_size is None or momentum is None or checkpoint is None or n is None:
+        return
+
+    generate(output_dir, latent_size, momentum, checkpoint, n)
 
 
 if __name__ == '__main__':
@@ -31,37 +39,43 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--dataset_dir',   type=str)
-    parser.add_argument('--t_dataset_dir', type=str)
-    parser.add_argument('--generated_dir', type=str)
+    parser.add_argument('--dataset_dir', type=str)
+    parser.add_argument('--build_dir',   type=str)
+    parser.add_argument('--checkpoint',  type=str)
+    parser.add_argument('--output_dir',  type=str)
 
-    parser.add_argument('--download',  dest='download',  action='store_true')
-    parser.add_argument('--transpose', dest='transpose', action='store_true')
-    parser.add_argument('--generate',  dest='generate',  action='store_true')
-    parser.add_argument('--train',     dest='train',     action='store_true')
+    parser.add_argument('--download', dest='download', action='store_true')
+    parser.add_argument('--build',    dest='build',    action='store_true')
+    parser.add_argument('--train',    dest='train',    action='store_true')
+    parser.add_argument('--test',     dest='test',     action='store_true')
 
-    parser.add_argument('--epochs',          default=250,          type=int)
-    parser.add_argument('--batch_size',      default=16,           type=int)
-    parser.add_argument('--learning_rate',   default=1e-4,         type=float)
+    parser.add_argument('--epochs',          default=2000,         type=int)
+    parser.add_argument('--batch_size',      default=32,           type=int)
+    parser.add_argument('--learning_rate',   default=1e-3,         type=float)
     parser.add_argument('--weight_decay',    default=0.,           type=float)
-    parser.add_argument('--beta',            default=4.,           type=float)
-    parser.add_argument('--num_workers',     default=6,            type=int)
+    parser.add_argument('--beta_1',          default=.02,          type=float)
+    parser.add_argument('--beta_2',          default=.1,           type=float)
+    parser.add_argument('--momentum',        default=.9,           type=float)
+    parser.add_argument('--latent_size',     default=128,          type=int)
+
+    parser.add_argument('--num_workers',     default=4,            type=int)
     parser.add_argument('--experience_name', default='experience', type=str)
     parser.add_argument('--saving_rate',     default=2,            type=int)
+    parser.add_argument('--n_examples',      default=6,            type=int)
+
 
     args = parser.parse_args()
 
     if args.download:
-        build_dataset(args.dataset_dir)
+        scrap_dataset(args.dataset_dir)
 
-    if args.transpose:
-        build_t_dataset(args.dataset_dir, args.t_dataset_dir)
-
-    if args.generate:
-        generate_dataset(args.dataset_dir, args.t_dataset_dir, args.generated_dir)
+    if args.build:
+        build_dataset(args.dataset_dir, args.build_dir)
 
     if args.train:
-        train_model(args.epochs, args.batch_size, args.learning_rate,
-                    args.weight_decay, args.beta, args.num_workers,
-                    args.generated_dir, args.experience_name,
-                    args.saving_rate)
+        train_model(args.epochs, args.batch_size, args.learning_rate, args.weight_decay,
+                    args.beta_1, args.beta_2, args.latent_size, args.momentum, args.num_workers, args.build_dir,
+                    args.experience_name, args.saving_rate, args.checkpoint)
+
+    if args.test:
+        generate_examples(args.output_dir, args.latent_size, args.momentum, args.checkpoint, args.n_examples)

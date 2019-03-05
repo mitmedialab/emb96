@@ -1,117 +1,96 @@
 import torch.nn as nn
 import torch
 
-class FrameEncoder(nn.Module):
+class Flatten(nn.Module):
     def __init__(self):
-        super(FrameEncoder, self).__init__()
-
-        self.convs = nn.Sequential(
-            nn.Conv2d(1, 16, 5, stride=3),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(16, 32, 5, stride=3),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(32, 64, 3, stride=2),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 128, 3, stride=2),
-            nn.ReLU(inplace=True)
-        )
+        super(Flatten, self).__init__()
 
     def forward(self, x):
-        b, t, c, h, w = x.size()
-        x_reshaped    = x.contiguous().view(b * t, c, h, w)
-        y             = self.convs(x_reshaped)
-        return y.contiguous().view(b, t * y.size(1))
+        return x.contiguous().view(x.size(0), -1)
 
-class SongEncoder(nn.Module):
-    def __init__(self):
-        super(SongEncoder, self).__init__()
-
-        self.fc = nn.Sequential(
-            nn.Dropout(0.25),
-            nn.Linear(2048, 1024),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(1024, 512),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-        )
-
-        self.mu    = nn.Linear(512, 256)
-        self.sigma = nn.Linear(512, 256)
-
-    def reparametrization(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return eps.mul(std).add_(mu)
+class UnFlatten(nn.Module):
+    def __init__(self, size):
+        super(UnFlatten, self).__init__()
+        self.size = size
 
     def forward(self, x):
-        y          = self.fc(x)
-        mu, logvar = self.mu(y), self.sigma(y)
-        z          = self.reparametrization(mu, logvar)
-        return (z, mu, logvar)
+        return x.contiguous().view(x.size(0), *self.size)
+
+class TimeDistributed(nn.Module):
+    def __init__(self, module):
+        super(TimeDistributed, self).__init__()
+        self.module = module
+
+    def forward(self, x):
+        x       = x.contiguous().view(x.size(0), x.size(1), -1)
+        b, t, s = x.size()
+        x       = x.contiguous().view(b * t, s)
+        y       = self.module(x)
+        y       = y.contiguous().view(b, t, -1)
+
+        return y
 
 class Encoder(nn.Module):
-    def __init__(self):
+    def __init__(self, size, beta, latent_size):
         super(Encoder, self).__init__()
+        self.size        = size
+        self.beta        = beta
+        self.latent_size = latent_size
+        t, h, w          = size
 
-        self.fe = FrameEncoder()
-        self.se = SongEncoder()
+        self.frame_encoder = TimeDistributed(nn.Sequential(
+            nn.Linear(h * w, 2000), nn.ReLU(inplace=True),
+            nn.Linear( 2000,  200), nn.ReLU(inplace=True)
+        ))
 
-    def forward(self, x):
-        z, mu, logvar = self.se(self.fe(x))
-        return (z, mu, logvar)
+        self.flatten       = Flatten()
 
-class FrameDecoder(nn.Module):
-    def __init__(self, t, c, h, w):
-        super(FrameDecoder, self).__init__()
-        self.t = t
-        self.c = c
-        self.h = h
-        self.w = w
-
-        self.convs = nn.Sequential(
-            nn.ConvTranspose2d(128, 64, 3, stride=2, padding=0, output_padding=0),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(64, 32, 3, stride=2, padding=0, output_padding=0),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(32, 16, 3, stride=2, padding=0, output_padding=0),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(16, 8, 5, stride=3, padding=0, output_padding=0),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(8, 1, 4, stride=2, padding=0, output_padding=0),
+        self.song_encoder  = nn.Sequential(
+            nn.Linear(t * 200, 1600), nn.ReLU(inplace=True)
         )
+        self.mu            = nn.Linear(1600, self.latent_size)
+        self.sigma         = nn.Linear(1600, self.latent_size)
+
+    def reparametrization(self, mu, logvar):
+        std = logvar.mul(0.5).exp_()
+        eps = torch.randn(*mu.size()).normal_(mean=0., std=self.beta).cuda()
+
+        return mu + std * eps
 
     def forward(self, x):
-        b          = x.size(0)
-        x_reshaped = x.contiguous().view(b * self.t, 128, 1, 1)
-        y          = self.convs(x_reshaped)
-        return y.contiguous().view(b, self.t, self.c, self.h, self.w)
+        y      = self.frame_encoder(x)
+        y      = self.flatten(y)
+        y      = self.song_encoder(y)
+        mu     = self.mu(y)
+        logvar = self.sigma(y)
+        z      = self.reparametrization(mu, logvar)
 
-class SongDecoder(nn.Module):
-    def __init__(self):
-        super(SongDecoder, self).__init__()
-
-        self.fc = nn.Sequential(
-            nn.Dropout(0.25),
-            nn.Linear(256, 512),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(512, 1024),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(1024, 2048),
-            nn.ReLU(inplace=True),
-        )
-
-    def forward(self, x):
-        return self.fc(x)
+        return z, mu, logvar
 
 class Decoder(nn.Module):
-    def __init__(self, t, c, h, w):
+    def __init__(self, size, latent_size, momentum):
         super(Decoder, self).__init__()
+        self.size        = size
+        self.latent_size = latent_size
+        t, h, w          = size
 
-        self.sd = SongDecoder()
-        self.fd = FrameDecoder(t, c, h, w)
+        self.song_decoder  = nn.Sequential(
+            nn.Linear(self.latent_size,    1600), nn.BatchNorm1d(   1600, momentum=momentum), nn.ReLU(inplace=True), nn.Dropout(0.5),
+            nn.Linear(            1600, t * 200), nn.BatchNorm1d(t * 200, momentum=momentum), nn.ReLU(inplace=True), nn.Dropout(0.5)
+        )
+
+        self.unflatten     = UnFlatten((t, 200))
+
+        self.frame_decoder = TimeDistributed(nn.Sequential(
+            nn.Linear( 200,  2000), nn.BatchNorm1d( 2000, momentum=momentum), nn.ReLU(inplace=True), nn.Dropout(0.5),
+            nn.Linear(2000, h * w),                                           nn.Sigmoid()
+        ))
+        self.final         = UnFlatten((t, h, w))
 
     def forward(self, x):
-        return self.fd(self.sd(x))
+        y = self.song_decoder(x)
+        y = self.unflatten(y)
+        y = self.frame_decoder(y)
+        y = self.final(y)
+
+        return y

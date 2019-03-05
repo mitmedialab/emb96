@@ -1,19 +1,11 @@
+from dataset.midi import load_img, SAMPLE_PER_MEASURE, MEASURES, NOTES
+from torch.autograd import Variable
 from torch.utils import data
 from tqdm import tqdm
 
 import numpy as np
 import torch
 import os
-
-LABELS = {
-    'A-major': 0, 'Amajor': 1, 'Aminor': 2,
-    'B-major': 3, 'B-minor': 4, 'Bmajor': 5, 'Bminor': 6,
-    'C#major': 7, 'C#minor': 8, 'Cmajor': 9, 'Cminor': 10,
-    'Dmajor': 11, 'Dminor': 12,
-    'E-major': 13, 'E-minor': 14, 'Emajor': 15, 'Eminor': 16,
-    'F#major': 17, 'F#minor': 18, 'Fmajor': 19, 'Fminor': 20,
-    'G#minor': 21, 'Gmajor': 22, 'Gminor': 23
-}
 
 class Dataset(data.Dataset):
     def __init__(self, data_dir):
@@ -24,11 +16,18 @@ class Dataset(data.Dataset):
         return self.size
 
     def _read_files(self, data_dir):
-        labels  = os.listdir(data_dir)
-        folders = [os.path.join(data_dir, label) for label in labels]
+        self.labels  = sorted(os.listdir(data_dir))
+        folders      = [
+            os.path.join(data_dir, label)
+            for label in self.labels
+        ]
 
+        pbar = tqdm(
+            enumerate(self.labels),
+            total = len(self.labels),
+            desc  = 'Reading files per class'
+        )
         data = []
-        pbar = tqdm(enumerate(labels), total=len(labels), desc='Reading files per class')
         for i, label in pbar:
             folder = folders[i]
             paths  = [
@@ -40,12 +39,29 @@ class Dataset(data.Dataset):
 
         return data
 
+    def _load_imgs(self, path):
+        measures = load_img(path)
+        if measures.shape[1] < MEASURES * SAMPLE_PER_MEASURE:
+            _measures = np.zeros((NOTES, MEASURES * SAMPLE_PER_MEASURE))
+            _measures[:, :measures.shape[1]] = measures
+            measures                         = _measures
+
+        start    = np.random.randint(0, measures.shape[1] - (MEASURES * SAMPLE_PER_MEASURE) + 1)
+        measures = measures[:, start:start + (MEASURES * SAMPLE_PER_MEASURE)]
+        data     =  np.array([
+            measures[:, i:i + SAMPLE_PER_MEASURE]
+            for i in range(0, measures.shape[1], SAMPLE_PER_MEASURE)
+        ], dtype=np.uint8)
+        return data.reshape(MEASURES, NOTES, SAMPLE_PER_MEASURE)
+
     def __getitem__(self, idx):
         data = self.data[idx]
 
-        label                  = np.zeros((len(LABELS)))
-        label[LABELS[data[1]]] = 1
-        label                  = torch.from_numpy(label).unsqueeze(0)
-        imgs                   = torch.from_numpy(np.load(data[0])).unsqueeze(0)
+        label_idx        = self.labels.index(data[1])
+        label            = np.zeros((len(self.labels)))
+        label[label_idx] = 1
 
-        return imgs, label
+        label = torch.from_numpy(label).float()
+        imgs  = torch.from_numpy(self._load_imgs(data[0])).float()
+
+        return (imgs, label)
