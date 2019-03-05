@@ -10,14 +10,17 @@ import PIL
 import os
 import io
 
-def generate(output_dir, latent_size, momentum, checkpoint, n):
+def generate(output_dir, latent_size, momentum, checkpoint, n, cpu=False):
     decoder = Decoder((MEASURES, NOTES, SAMPLE_PER_MEASURE), latent_size, momentum)
     check   = torch.load(checkpoint)
     decoder.load_state_dict(check['decoder_state_dict'])
-    decoder = decoder.cuda()
+    if not cpu:
+        decoder = decoder.cuda()
     decoder.eval()
 
-    z = torch.randn((n, latent_size)).cuda()
+    z = torch.randn((n, latent_size))
+    if not cpu:
+        z = z.cuda()
     y = decoder(z)
 
     y = y.detach().cpu().numpy()
