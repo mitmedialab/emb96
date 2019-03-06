@@ -1,9 +1,9 @@
-# EMB96: Endless Music Box 96
+# EMB96: Endless Music Box 96
 
 EMB96 is an AI (Artificial Intelligence) trained to generate midi.
 
 
-## Sound Representation
+## Sound Representation
 
 Each midi file is represented as a 16 piano-roll composed of 96 notes and 96 values.
 Why 96:
@@ -18,7 +18,7 @@ The networks tries to encode the data into a 128 vector $z$ (variable from laten
 It has been trained using a mixture of the KLD (kl divergence) fot the sparsity of the latent space and the binary cross entropy loss for the reconstruction part.
 
 
-## How to use it
+## How to use it
 
 ### Build dataset
 
@@ -39,7 +39,7 @@ cd src
 python3 main.py --dataset_dir <dataset dir path> --build_dir <build dir path> --build
 ```
 
-## Train model
+## Train model
 
 **Accessible for non gpu users, you just have to use the option --cpu**
 
