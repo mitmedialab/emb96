@@ -52,7 +52,7 @@ def plot(fig, axes, _imgs, imgs):
 
 def train(epochs, batch_size, learning_rate, weight_decay,
           beta_1, beta_2, latent_size, momentum, num_workers, dataset_dir,
-          experience_name, saving_rate, checkpoint=None):
+          experience_name, saving_rate, checkpoint=None, cpu=False):
 
     experience_name = os.path.join('../', experience_name)
     if not os.path.isdir(experience_name):
@@ -88,9 +88,10 @@ def train(epochs, batch_size, learning_rate, weight_decay,
         weight_decay = weight_decay
     )
 
-    encoder   = encoder.cuda()
-    decoder   = decoder.cuda()
-    criterion = criterion.cuda()
+    if not cpu:
+        encoder   = encoder.cuda()
+        decoder   = decoder.cuda()
+        criterion = criterion.cuda()
 
     fig  = plt.figure(figsize=(20, 10))
     axes = [fig.add_subplot(4, 1, i + 1) for i in range(4)]
@@ -105,8 +106,9 @@ def train(epochs, batch_size, learning_rate, weight_decay,
         pbar          = tqdm(dataloader, desc=f'Epoch trainval {epoch + 1}/{epochs}')
 
         for batch_id, (imgs, labels) in enumerate(pbar):
-            imgs   = imgs.cuda()
-            labels = labels.cuda()
+            if not cpu:
+                imgs   = imgs.cuda()
+                labels = labels.cuda()
 
             optimizer.zero_grad()
 
@@ -163,8 +165,12 @@ def train(epochs, batch_size, learning_rate, weight_decay,
 
                 for i in range(4):
                     imgs, labels = dataset[i]
-                    imgs         = imgs.cuda().unsqueeze(0)
-                    labels       = labels.cuda().unsqueeze(0)
+                    imgs         = imgs.unsqueeze(0)
+                    labels       = labels.unsqueeze(0)
+
+                    if not cpu:
+                        imgs   = imgs.cuda()
+                        labels = labels.cuda()
 
                     z, _, _ = encoder(imgs)
                     _imgs   = decoder(z)[0].cpu().detach().numpy()

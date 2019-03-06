@@ -41,7 +41,7 @@ python3 main.py --dataset_dir <dataset dir path> --build_dir <build dir path> --
 
 ## Train model
 
-**For the moment you can only train on gpu**
+**Accessible for non gpu users, you just have to use the option --cpu**
 
 You can train the model just by calling the following command:
 
@@ -59,7 +59,7 @@ python3 main.py --help
 
 ## Test the model
 
-**This part is accessible for non gpu users, you just have to use the option --cpu**
+**Accessible for non gpu users, you just have to use the option --cpu**
 
 If you want to try the model:
 

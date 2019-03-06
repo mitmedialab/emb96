@@ -15,7 +15,7 @@ def build_dataset(dataset_dir, build_dir):
 
 def train_model(epochs, batch_size, learning_rate, weight_decay,
                 beta_1, beta_2, latent_size, momentum, num_workers, build_dir,
-                experience_name, saving_rate, checkpoint):
+                experience_name, saving_rate, checkpoint, cpu):
     if epochs is None or batch_size is None or learning_rate is None or weight_decay is None:
         return
     if beta_1 is None or beta_2 is None or latent_size is None or momentum is None or num_workers is None or build_dir is None:
@@ -25,7 +25,8 @@ def train_model(epochs, batch_size, learning_rate, weight_decay,
 
     train(epochs, batch_size, learning_rate, weight_decay,
           beta_1, beta_2, latent_size, momentum, num_workers, build_dir,
-          experience_name, saving_rate, None if checkpoint is None else checkpoint)
+          experience_name, saving_rate, None if checkpoint is None else checkpoint,
+          False if not cpu else True)
 
 def generate_examples(output_dir, latent_size, momentum, checkpoint, n, cpu):
     if output_dir is None or latent_size is None or momentum is None or checkpoint is None or n is None:
@@ -73,10 +74,10 @@ if __name__ == '__main__':
     if args.build:
         build_dataset(args.dataset_dir, args.build_dir)
 
-    if args.train and not args.cpu:
+    if args.train:
         train_model(args.epochs, args.batch_size, args.learning_rate, args.weight_decay,
                     args.beta_1, args.beta_2, args.latent_size, args.momentum, args.num_workers, args.build_dir,
-                    args.experience_name, args.saving_rate, args.checkpoint)
+                    args.experience_name, args.saving_rate, args.checkpoint, args.cpu)
 
     if args.test:
         generate_examples(args.output_dir, args.latent_size, args.momentum, args.checkpoint, args.n_examples, args.cpu)
